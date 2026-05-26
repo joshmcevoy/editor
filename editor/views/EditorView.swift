@@ -2,16 +2,13 @@ import AppKit
 import Foundation
 import SwiftUI
 
-@Observable
-final class EditorModel {
-	
-}
-
 struct EditorView: NSViewRepresentable {
 	
-	func makeNSView(context: Context) -> NSView {
-		let editorView = EditorNSView()
-
+	let loadedFile: FileNode?
+	
+	func makeNSView(context: Context) -> NSScrollView {
+		let editorView = EditorNSView(loadedFile: loadedFile)
+		
 		let scrollView = NSScrollView()
 		scrollView.documentView = editorView
 
@@ -26,21 +23,57 @@ struct EditorView: NSViewRepresentable {
 		return scrollView
 	}
 	
-	func updateNSView(_ nsView: NSView, context: Context) {
+	func updateNSView(_ scrollView: NSScrollView, context: Context) {
+		guard let editorView = scrollView.documentView as? EditorNSView else {
+			return
+		}
+
+		editorView.loadedFile = loadedFile
+		editorView.needsDisplay = true
+		
 	}
-	
 }
 
+struct Cursor {
+	var row: Int = 0
+	var col: Int = 0
+}
 
 class EditorNSView: NSView {
+	private var fileContent: Rope? = nil
 	private var lines: [String] = []
 	private var tokens: [Token] = []
+	
+	public var loadedFile: FileNode? = nil {
+		didSet {
+			needsDisplay = true
+		}
+	}
+	
+	private var cursor: Cursor = Cursor(row: 0, col: 0)
+	
+	var lineIndexes: [Int] = []
+	private func rebuildLineIndexes() {
+		lineIndexes = [0]
 
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
+		var index = 0
 
-		let url = URL(fileURLWithPath: "/Users/josh/tmp/test.swift")
-
+		for line in lines.dropLast() {
+			index += line.count + 1
+			lineIndexes.append(index)
+		}
+	}
+	
+	init(loadedFile: FileNode?) {
+		self.loadedFile = loadedFile
+		super.init(frame: .zero)
+		
+		loadFile()
+	}
+	
+	func loadFile() {
+		let url = URL(fileURLWithPath: loadedFile?.path ?? "err")
+		
 		var contents = "Err"
 		do {
 			contents = try String(contentsOf: url, encoding: .utf8)
@@ -48,11 +81,20 @@ class EditorNSView: NSView {
 			print("Failed to load file: \(error)")
 		}
 		
-		let fileContent = Rope(text: contents)
-		tokens = Lexer(text: fileContent.toString()).outputTokens
-		lines = fileContent.toString().components(separatedBy: "\n")
+		fileContent = Rope(text: contents)
+		tokens = Lexer(text: fileContent!.toString()).outputTokens
 		
+		lines = fileContent!.toString().components(separatedBy: "\n")
+		
+		rebuildLineIndexes()
 		updateFrameSize()
+	}
+	
+    override init(frame frameRect: NSRect) {
+		print("override init")
+		
+        super.init(frame: frameRect)
+		
 		needsDisplay = true
     }
 
@@ -78,8 +120,23 @@ class EditorNSView: NSView {
 		.returnType: NSColor(rgb: 0x52796F)
 	]
 	
+	// MARK: Drawing
+	
+	private var gutterWidth: CGFloat {
+		textWidth(text: String(lines.count))
+	}
+	
+	private var textStartX: CGFloat {
+		padding + gutterWidth + padding
+	}
+	
+	private var textStartY: CGFloat {
+		padding + 3
+	}
+	
 	override func draw(_ dirtyRect: NSRect) {
 		super.draw(dirtyRect)
+		
 		
 		for i in 0..<lines.count {
 			let lineAttr = NSMutableAttributedString(
@@ -101,7 +158,7 @@ class EditorNSView: NSView {
 						value: defaultColours[token.type, default: NSColor.textColor],
 						range: range
 					)
-				} else {
+				} /*else {
 					print("-----")
 					print("Invalid token range:")
 					print("line:", i)
@@ -109,33 +166,133 @@ class EditorNSView: NSView {
 					print("line length:", lineAttr.length)
 					print("token:", token)
 					print("range:", range)
-				}
+				}*/
 			}
 
-			let lineNumWidth = drawLineNumber(lineNum: i)
-			let lineNumberY = i * Int(lineHeight) + Int(padding)
-			
-			lineAttr.draw(at: CGPoint(x: lineNumWidth + Int(padding * 2), y: lineNumberY + 3))
-			
+			drawLineNumber(lineNum: i)
+			let lineY = textStartY + CGFloat(i) * lineHeight
+
+			lineAttr.draw(at: CGPoint(
+				x: textStartX,
+				y: lineY
+			))
 		}
+		
+		drawCursor()
 	}
 	
-	func drawLineNumber(lineNum: Int) -> Int {
+	func drawLineNumber(lineNum: Int) {
 		let lineNumAttr = NSAttributedString(
 			string: String(lineNum + 1),
+			attributes: [
+				.font: font,
+				.foregroundColor: NSColor.gray
+			]
+		)
+
+		let lineY = textStartY + CGFloat(lineNum) * lineHeight
+
+		lineNumAttr.draw(at: CGPoint(
+			x: padding,
+			y: lineY
+		))
+	}
+	
+	func textWidth(text: String = "A") -> CGFloat {
+		let lineNumAttr = NSAttributedString(
+			string: text,
 			attributes: [
 				.font: NSFont.monospacedSystemFont(ofSize: 14, weight: .regular),
 				.foregroundColor: NSColor(.gray)
 			]
 		)
 		
-		let lineNumberY = lineNum * Int(lineHeight) + Int(padding)
-		lineNumAttr.draw(at: CGPoint(x: Int(padding), y: lineNumberY + 3))
-		
-		return Int(lineNumAttr.size().width)
+		return lineNumAttr.size().width
+	}
+	
+	func drawCursor() {
+		guard cursor.row >= 0, cursor.row < lines.count else { return }
+
+		let x = textStartX + CGFloat(cursor.col) * textWidth()
+		let y = textStartY + CGFloat(cursor.row) * lineHeight
+
+		let cursorRect = NSRect(
+			x: x,
+			y: y,
+			width: 1.5,
+			height: lineHeight
+		)
+
+		NSColor.textColor.setFill()
+		cursorRect.fill()
 	}
 	
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+	
+	// MARK: Editor interaction
+
+	override func resetCursorRects() {
+		let cursorRect = self.bounds
+		self.addCursorRect(cursorRect, cursor: .iBeam)
+	}
+	
+	override func mouseDown(with event: NSEvent) {
+		let locationInView = convert(event.locationInWindow, from: nil)
+
+		let clickedY = locationInView.y - textStartY
+		let row = Int(floor(clickedY / lineHeight))
+
+		let clickedRow = max(0, min(row, lines.count - 1))
+		cursor.row = clickedRow
+
+		let line = lines[clickedRow]
+
+		let clickedX = locationInView.x - textStartX
+		let col = Int(round(clickedX / textWidth()))
+
+		cursor.col = max(0, min(col, line.count))
+
+		needsDisplay = true
+	}
+	
+	override var acceptsFirstResponder: Bool { return true }
+
+	override func keyDown(with event: NSEvent) {
+		if let specialKey = event.specialKey {
+			switch specialKey {
+			case .upArrow:
+				cursor.row -= 1
+			case .downArrow:
+				cursor.row += 1
+			case .leftArrow:
+				cursor.col -= 1
+			case .rightArrow:
+				cursor.col += 1
+			default:
+				super.keyDown(with: event)
+				return
+			}
+			
+			needsDisplay = true
+			return
+		}
+
+		if let char = event.characters {
+			fileContent?.insert(index: lineIndexes[cursor.row] + cursor.col, text: char)
+
+			let text = fileContent!.toString()
+
+			lines = text.components(separatedBy: "\n")
+			tokens = Lexer(text: text).outputTokens
+			rebuildLineIndexes()
+			updateFrameSize()
+
+			cursor.col += char.count
+
+			needsDisplay = true
+		}
+	}
+	
 }

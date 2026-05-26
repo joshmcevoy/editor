@@ -18,7 +18,7 @@ class RopeNode {
 
 class Rope {
     
-	private var root: RopeNode?
+	public var root: RopeNode?
 	
 	init(text: String = "") {
 		root = create(text: text)
@@ -26,14 +26,23 @@ class Rope {
 	
 	private func create(text: String) -> RopeNode {
 		if (text.count <= 4) {
-			return RopeNode(left: nil, right: nil, text: text, lCount: text.count)
+			return RopeNode(
+				left: nil,
+				right: nil,
+				text: text,
+				lCount: text.count
+			)
 		}
 		
 		let firstHalf: String = String(text.prefix(text.count / 2))
 		let secondHalf: String = String(text.suffix(text.count - (text.count / 2)))
 		
-		let returnRope: RopeNode = RopeNode(left: self.create(text: firstHalf), right: self.create(text: secondHalf), text: "", lCount: text.count / 2)
-		return returnRope
+		return RopeNode(
+			left: self.create(text: firstHalf),
+			right: self.create(text: secondHalf),
+			text: "",
+			lCount: text.count / 2
+		)
 	}
 	
 	public func toString(lineFrom: Int = 0, lineTo: Int = 0) -> String {
@@ -69,4 +78,57 @@ class Rope {
 		}
 		return 0
 	}
+	
+	public func concat(node1: RopeNode, node2: RopeNode) -> RopeNode {
+		return RopeNode(
+			left: node1,
+			right: node2,
+			lCount: self.weight(node: node1)
+		)
+	}
+	
+	public func split(index: Int, node: RopeNode) -> (node1: RopeNode, node2: RopeNode) {
+		
+		// leaf node case
+		if (node.right == nil && node.left == nil) {
+			let leftText = String(node.text.prefix(index))
+			let rightText = String(node.text.suffix(node.text.count - index))
+			
+			let leftNode = RopeNode(text: leftText)
+			let rightNode = RopeNode(text: rightText)
+			
+			return (leftNode, rightNode)
+		}
+		
+		// internal node case
+		let leftChild = node.left!
+		let rightChild = node.right!
+		let weight = node.lCount
+		
+		if (index < weight) {
+			let (a, b) = split(index: index, node: leftChild)
+			
+			return (a, self.concat(node1: b, node2: rightChild))
+		} else if (index > weight) {
+			let localIndex = index - weight
+			let (a, b) = split(index: localIndex, node: rightChild)
+			
+			return (concat(node1: leftChild, node2: a), b)
+		} 
+		
+		return (leftChild, rightChild)
+	}
+	
+	public func insert(index: Int, text: String) {
+		let (left, right) = split(index: index, node: self.root!)
+		
+		self.root = concat(
+			node1: concat(
+				node1: left,
+				node2: RopeNode(text: text)
+			),
+			node2: right
+		)
+	}
+	
 }

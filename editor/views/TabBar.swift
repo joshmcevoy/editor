@@ -8,13 +8,20 @@ struct EditorTab: Identifiable {
 struct EditorTabView: View {
 	let Tab: EditorTab
 	@State private var hovered = false
+	@EnvironmentObject var appState: AppState
 	
 	var body: some View {
 		HStack {
-			Image(systemName: "doc.text").foregroundStyle(hovered ? .black : .white)
-			Text(Tab.name).foregroundStyle(hovered ? .black : .white)
+			Image(systemName: "doc.text").foregroundStyle(.black)
+			Text(Tab.name).foregroundStyle(.black)
+			if hovered {
+				Image(systemName: "x.circle").foregroundStyle(.black)
+					.onTapGesture {
+						appState.currentOpenFile = nil
+					}
+			}
 		}.padding(10)
-			.background(hovered ? .gray : .black)
+			.background(hovered ? Color(NSColor(rgb: 0xd2d2d2)) : Color(NSColor(rgb: 0xF0F0F0)))
 			.cornerRadius(20)
 			.onHover { hovering in
 				withAnimation(.easeInOut(duration: 0.1)) {
@@ -31,8 +38,10 @@ struct EditorTabView: View {
 }
 
 struct TabBar: View {
+	@EnvironmentObject var appState: AppState
+	
 	var body: some View {
-		let tabs: [EditorTab] = [EditorTab(id: 0, name: "Test"), EditorTab(id: 1, name: "Test2"), EditorTab(id: 2, name: "Test3"), EditorTab(id: 3, name: "Test4"), EditorTab(id: 4, name: "Test5")]
+		let tabs: [EditorTab] = [EditorTab(id: 0, name: appState.currentOpenFile?.name ?? "No file selected")]
 		
 		HStack {
 			ForEach(tabs) { tab in
