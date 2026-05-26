@@ -7,7 +7,7 @@ final class AppState: ObservableObject {
 	init() {
 		self.currentOpenFile = FileNode(
 			name: "test.swift",
-			path: "/Users/josh/tmp/test.swift",
+			path: "/Users/josh/tmp2/Rope.swift",
 			isDirectory: false,
 			children: nil
 		)

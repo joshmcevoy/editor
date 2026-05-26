@@ -5,7 +5,7 @@ class FileList {
 	var root: FileNode
 	
 	init() {
-		root = FileList.scanDirectory(path: "/Users/josh/tmp")
+		root = FileList.scanDirectory(path: "/Users/josh/tmp2")
 		//printNodes(node: root)
 	}
 	
