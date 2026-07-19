@@ -1,5 +1,5 @@
 # MacOS Text Editor
-Native MacOS text editor built with Swift and SwiftUI / AppKit as the GUI library. This project was built as a learning experience to further my knowledge in Swift and Apple ecosystem development in general, declarative GUI libraries and designing moderately sized projects.
+Work in progress native MacOS text editor built with Swift and SwiftUI / AppKit as the GUI library. This project was built as a learning experience to further my knowledge in Swift and Apple ecosystem development in general, declarative GUI libraries and designing moderately sized projects.
 
 ### Features
 - Open and read files
