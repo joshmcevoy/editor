@@ -131,4 +131,12 @@ class Rope {
 		)
 	}
 	
+	public func delete(index: Int, length: Int = 1) {
+		let (left, remaining) = split(index: index, node: root!)
+		let (target, right) = split(index: length, node: remaining)
+		
+		//todo: add a rebalancing function.
+		self.root = concat(node1: left, node2: right)
+	}
+	
 }

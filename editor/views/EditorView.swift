@@ -30,7 +30,6 @@ struct EditorView: NSViewRepresentable {
 
 		editorView.loadedFile = loadedFile
 		editorView.needsDisplay = true
-		
 	}
 }
 
@@ -46,6 +45,8 @@ class EditorNSView: NSView {
 	
 	public var loadedFile: FileNode? = nil {
 		didSet {
+			cursor = Cursor(row: 0, col: 0)
+			loadFile()
 			needsDisplay = true
 		}
 	}
@@ -55,9 +56,9 @@ class EditorNSView: NSView {
 	var lineIndexes: [Int] = []
 	private func rebuildLineIndexes() {
 		lineIndexes = [0]
-
+		
 		var index = 0
-
+		
 		for line in lines.dropLast() {
 			index += line.count + 1
 			lineIndexes.append(index)
@@ -69,6 +70,15 @@ class EditorNSView: NSView {
 		super.init(frame: .zero)
 		
 		loadFile()
+		loadTheme()
+		
+		let liveshare = LiveShare()
+	}
+	
+	override init(frame frameRect: NSRect) {
+		super.init(frame: frameRect)
+		
+		needsDisplay = true
 	}
 	
 	func loadFile() {
@@ -90,14 +100,14 @@ class EditorNSView: NSView {
 		updateFrameSize()
 	}
 	
-    override init(frame frameRect: NSRect) {
-		print("override init")
+	let loadedTheme: [TokenType: NSColor] = [:]
+	
+	func loadTheme() {
+		let defaultTheme = "default.json"
 		
-        super.init(frame: frameRect)
-		
-		needsDisplay = true
-    }
-
+		let themeLoader = ThemeLoader()
+	}
+	
 	override var isFlipped: Bool { true }
 	
 	// hard coded for the moment
@@ -139,39 +149,45 @@ class EditorNSView: NSView {
 		
 		
 		for i in 0..<lines.count {
+			//fix tabs being unevenly spaced
+			let paragraphStyle = NSMutableParagraphStyle()
+			paragraphStyle.defaultTabInterval = textWidth() * 4
+			paragraphStyle.tabStops = []
+			
 			let lineAttr = NSMutableAttributedString(
 				string: lines[i],
 				attributes: [
 					.font: NSFont.monospacedSystemFont(ofSize: 14, weight: .regular),
-					.foregroundColor: NSColor.textColor
+					.foregroundColor: NSColor.textColor,
+					.paragraphStyle: paragraphStyle
 				]
 			)
 			
 			for token in tokens where token.lineNum == i {
 				let range = NSRange(location: token.start, length: token.length)
-
+				
 				if range.location >= 0 &&
-				   range.location + range.length <= lineAttr.length {
-
+					range.location + range.length <= lineAttr.length {
+					
 					lineAttr.addAttribute(
 						.foregroundColor,
 						value: defaultColours[token.type, default: NSColor.textColor],
 						range: range
 					)
 				} /*else {
-					print("-----")
-					print("Invalid token range:")
-					print("line:", i)
-					print("line text:", lines[i])
-					print("line length:", lineAttr.length)
-					print("token:", token)
-					print("range:", range)
-				}*/
+				   print("-----")
+				   print("Invalid token range:")
+				   print("line:", i)
+				   print("line text:", lines[i])
+				   print("line length:", lineAttr.length)
+				   print("token:", token)
+				   print("range:", range)
+				   }*/
 			}
-
+			
 			drawLineNumber(lineNum: i)
 			let lineY = textStartY + CGFloat(i) * lineHeight
-
+			
 			lineAttr.draw(at: CGPoint(
 				x: textStartX,
 				y: lineY
@@ -189,9 +205,9 @@ class EditorNSView: NSView {
 				.foregroundColor: NSColor.gray
 			]
 		)
-
+		
 		let lineY = textStartY + CGFloat(lineNum) * lineHeight
-
+		
 		lineNumAttr.draw(at: CGPoint(
 			x: padding,
 			y: lineY
@@ -212,27 +228,34 @@ class EditorNSView: NSView {
 	
 	func drawCursor() {
 		guard cursor.row >= 0, cursor.row < lines.count else { return }
-
+		
 		let x = textStartX + CGFloat(cursor.col) * textWidth()
 		let y = textStartY + CGFloat(cursor.row) * lineHeight
-
+		
+		/*
+		 print(cursor.col)
+		 print(cursor.row)
+		 print("-----")
+		 */
+		
+		
 		let cursorRect = NSRect(
-			x: x,
+			x: floor(x),
 			y: y,
 			width: 1.5,
 			height: lineHeight
 		)
-
+		
 		NSColor.textColor.setFill()
 		cursorRect.fill()
 	}
 	
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+	required init?(coder: NSCoder) {
+		fatalError("init(coder:) has not been implemented")
+	}
 	
 	// MARK: Editor interaction
-
+	
 	override func resetCursorRects() {
 		let cursorRect = self.bounds
 		self.addCursorRect(cursorRect, cursor: .iBeam)
@@ -240,36 +263,88 @@ class EditorNSView: NSView {
 	
 	override func mouseDown(with event: NSEvent) {
 		let locationInView = convert(event.locationInWindow, from: nil)
-
-		let clickedY = locationInView.y - textStartY
-		let row = Int(floor(clickedY / lineHeight))
-
-		let clickedRow = max(0, min(row, lines.count - 1))
-		cursor.row = clickedRow
-
-		let line = lines[clickedRow]
-
+		
 		let clickedX = locationInView.x - textStartX
-		let col = Int(round(clickedX / textWidth()))
-
-		cursor.col = max(0, min(col, line.count))
-
+		let clickedY = locationInView.y
+		
+		let clickedCol = Int(clickedX / textWidth())
+		let clickedRow = Int(clickedY / lineHeight) - 1
+		
+		let line = lines[clickedRow]
+		
+		cursor.col = clickedCol
+		cursor.row = clickedRow
+		
 		needsDisplay = true
 	}
 	
 	override var acceptsFirstResponder: Bool { return true }
+	
+	private var tabsInLine: Int {
+		return lines[cursor.row].count { $0 == "\t" }
+	}
+	
+	// convert cursor loc to text index
+	private var getIndex: Int {
+		return lineIndexes[cursor.row] + cursor.col - (tabsInLine * 3)
+	}
+	
+	func updateCursorPos(row: Int, col: Int) {
+		print("updating cursor pos")
+		guard cursor.row + row <= lines.count && cursor.row + row > 0  else { return }
+		guard cursor.col + col <= lines[cursor.row].count + (tabsInLine * 3) && cursor.col + col >= 0 else { return }
+		
+		if (row != 0) {
+			// if cursor is at the end of a line, wrap it to the end of the next
+			if (cursor.col > lines[cursor.row + row].count) {
+				cursor.col = lines[cursor.row + row].count + (tabsInLine * 3)
+			}
+		}
+		
+		cursor.row += row
+		cursor.col += col
+		
+		reloadText()
+	}
+	
+	private func reloadText() {
+		let text = fileContent!.toString()
 
+		lines = text.components(separatedBy: "\n")
+		tokens = Lexer(text: text).outputTokens
+		rebuildLineIndexes()
+		updateFrameSize()
+		needsDisplay = true
+	}
+	
+	func insert(char: String) {
+		fileContent?.insert(index: getIndex, text: char)
+
+		reloadText()
+		cursor.col += char.count
+	}
+	
+	func delete(row: Int, col: Int) {
+		guard getIndex > 0 else { return }
+		fileContent?.delete(index: getIndex - 1)
+		
+		reloadText()
+		cursor.col -= 1
+	}
+	
 	override func keyDown(with event: NSEvent) {
 		if let specialKey = event.specialKey {
 			switch specialKey {
 			case .upArrow:
-				cursor.row -= 1
+				updateCursorPos(row: -1, col: 0)
 			case .downArrow:
-				cursor.row += 1
+				updateCursorPos(row: 1, col: 0)
 			case .leftArrow:
-				cursor.col -= 1
+				updateCursorPos(row: 0, col: -1)
 			case .rightArrow:
-				cursor.col += 1
+				updateCursorPos(row: 0, col: 1)
+			case .delete:
+				delete(row: cursor.row, col: cursor.col)
 			default:
 				super.keyDown(with: event)
 				return
@@ -278,21 +353,16 @@ class EditorNSView: NSView {
 			needsDisplay = true
 			return
 		}
-
-		if let char = event.characters {
-			fileContent?.insert(index: lineIndexes[cursor.row] + cursor.col, text: char)
-
-			let text = fileContent!.toString()
-
-			lines = text.components(separatedBy: "\n")
-			tokens = Lexer(text: text).outputTokens
-			rebuildLineIndexes()
-			updateFrameSize()
-
-			cursor.col += char.count
-
-			needsDisplay = true
+		
+		if event.keyCode == 48 {
+			print("Tab key detected via keyCode")
+			return // Stop the event from propagating
 		}
+		
+		if let char = event.characters {
+			insert(char: char)
+		}
+		
 	}
 	
 }

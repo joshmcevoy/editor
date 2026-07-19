@@ -3,6 +3,7 @@ import Combine
 
 final class AppState: ObservableObject {
 	@Published var currentOpenFile: FileNode? = nil
+	@Published var liveShare: Bool = true // live share active? for the moment
 	
 	init() {
 		self.currentOpenFile = FileNode(
@@ -11,6 +12,7 @@ final class AppState: ObservableObject {
 			isDirectory: false,
 			children: nil
 		)
+		self.liveShare = liveShare
 	}
 }
 
@@ -20,10 +22,15 @@ struct editorApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MainView()
-				.environmentObject(appState)
-				.navigationTitle("Editor")
-        }
+			//if (appState.currentOpenFile != nil) {
+				MainView()
+					.environmentObject(appState)
+					.navigationTitle("Editor")
+			/*} else {
+				OpenView()
+					.frame(width: 300, height: 300)
+			}*/
+        }.windowResizability(.contentSize)
 		Settings {
 			SettingView()
 				.environmentObject(appState)

@@ -1,0 +1,13 @@
+{
+	"name": "Default",
+	"colours": {
+		"keyword": "#C1121F",
+		"identifier": "textColor",
+		"number": "#669BBC",
+		"string": "#FF7D00",
+		"symbol": "textColor",
+		"returnType": "#52796F"
+	},
+	"fontSize": "14",
+	"font": "SF Mono"
+}

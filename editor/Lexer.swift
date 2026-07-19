@@ -1,13 +1,13 @@
 import Foundation
 
-enum TokenType {
-	case whitespace
-	case keyword
-	case identifier
-	case number
-	case string
-	case symbol
-	case returnType
+enum TokenType: String {
+	case whitespace = "whitespace"
+	case keyword = "keyword"
+	case identifier = "identifier"
+	case number = "number"
+	case string = "string"
+	case symbol = "symbol"
+	case returnType = "returnType"
 	case none
 }
 
@@ -31,7 +31,7 @@ class Lexer {
 			(.whitespace, Regex(/^\n/)),
 			(.whitespace, Regex(/^[ \t]+/)),
 			// hardcoded keywords for the moment
-			(.keyword, Regex(/^(let|var|func|class|import|private|public|init|return|if|else|while|for|in|as|is|catch|throws|throw|self|true|false|nil)\b/)),
+			(.keyword, Regex(/^(let|var|func|class|import|private|public|init|return|if|else|while|for|in|as|is|catch|throws|throw|self|true|false|nil|enum|struct|override|guard)\b/)),
 			(.identifier, Regex(/^[A-Za-z_][A-Za-z0-9_]*/)),
 			(.number, Regex(/^\d+(\.\d+)?/)),
 			(.string, Regex(/^"([^"\\]|\\.)*"/)),
